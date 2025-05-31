@@ -61,7 +61,7 @@ PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACC
 # MikroTik client configuration will be added here
 [Peer]
 PublicKey = MIKROTIK_PUBLIC_KEY
-AllowedIPs = 10.0.0.2/32, 192.168.1.0/24
+AllowedIPs = 10.0.0.2/32
 ```
 
 ### Step 4: Enable IP Forwarding
@@ -153,7 +153,7 @@ Update the \[Peer] section with MikroTik's public key:
 ```ini
 [Peer]
 PublicKey = MIKROTIK_PUBLIC_KEY_HERE
-AllowedIPs = 10.0.0.2/32, 192.168.1.0/24
+AllowedIPs = 10.0.0.2/32
 ```
 
 ### Step 2: Start WireGuard Service
@@ -170,30 +170,7 @@ sudo wg show
 
 ## Part 4: PHPNuxBill Configuration
 
-### Step 1: Install PHPNuxBill on Server
-
-```bash
-# Install required packages
-sudo apt install apache2 mysql-server php php-mysql php-cli php-curl php-json php-zip unzip -y
-
-# Create database
-sudo mysql -u root -p
-CREATE DATABASE nuxbill;
-CREATE USER 'nuxbill'@'localhost' IDENTIFIED BY 'your_password';
-GRANT ALL PRIVILEGES ON nuxbill.* TO 'nuxbill'@'localhost';
-FLUSH PRIVILEGES;
-EXIT;
-
-# Download and install PHPNuxBill
-cd /var/www/html
-sudo wget https://github.com/hotspotbilling/phpnuxbill/archive/refs/heads/master.zip
-sudo unzip master.zip
-sudo mv phpnuxbill-master/* .
-sudo chown -R www-data:www-data /var/www/html/
-sudo chmod -R 755 /var/www/html/
-```
-
-### Step 2: Configure PHPNuxBill
+### Step 1: Configure PHPNuxBill
 
 1. Open browser and navigate to `http://YOUR_SERVER_IP`
 2. Follow installation wizard
@@ -204,7 +181,7 @@ sudo chmod -R 755 /var/www/html/
    * API Port: `8728`
    * Username/Password: MikroTik admin credentials
 
-### Step 3: Enable MikroTik API
+### Step 2: Enable MikroTik API
 
 On MikroTik router:
 
