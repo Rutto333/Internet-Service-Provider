@@ -1,68 +1,294 @@
-# Internet-Service-Provider
-# WireGuard VPN + PHPNuxBill Integration Guide
-
-This repository provides a complete guide to setting up a secure WireGuard VPN connection between a server (Ubuntu/Debian-based) and a MikroTik router. It also includes instructions to install and configure PHPNuxBill for managing hotspot users through the VPN tunnel.
-
-## Features
-
-* WireGuard VPN setup between Ubuntu server and MikroTik router
-* NAT and routing configuration for internet access
-* Full PHPNuxBill installation and integration with MikroTik API
-* Secure remote management of local networks
-
-## Technologies Used
-
-* Ubuntu/Debian
-* WireGuard
-* MikroTik RouterOS 7+
-* PHPNuxBill
-* Apache, MySQL, PHP
+# Server to MikroTik WireGuard VPN Setup Guide
 
 ## Prerequisites
 
-* A VPS or bare-metal server running Ubuntu/Debian
-* MikroTik router with RouterOS 7.0+
-* Basic networking and SSH access
-* Admin access to MikroTik
+* VPS with Ubuntu/Debian
+* MikroTik router with RouterOS 7.x+ (WireGuard support)
+* SSH access to server
+* Admin access to MikroTik router
 
-## Setup Overview
+## Part 1: Server Setup (WireGuard Server)
 
-1. **Install and configure WireGuard on the server**
-2. **Set up WireGuard client on MikroTik router**
-3. **Enable IP forwarding and NAT**
-4. **Install and configure PHPNuxBill**
-5. **Connect PHPNuxBill to MikroTik through VPN**
-
-## Folder Structure
-
-```
-.
-├── wireguard-server-setup.md        # Instructions to install and configure WireGuard on server
-├── mikrotik-client-setup.md         # MikroTik configuration steps
-├── phpnuxbill-installation.md       # LAMP and PHPNuxBill installation guide
-├── README.md                        # This file
-```
-
-## Quick Start
+### Step 1: Install WireGuard on Server
 
 ```bash
+# Update system
 sudo apt update && sudo apt upgrade -y
-sudo apt install wireguard iptables-persistent qrencode -y
+
+# Install WireGuard
+sudo apt install wireguard -y
+
+# Install additional tools
+sudo apt install qrencode iptables-persistent -y
 ```
 
-Then follow the [wireguard-server-setup.md](./wireguard-server-setup.md) for complete instructions.
+### Step 2: Generate Server Keys
 
-## Security Tips
+```bash
+# Navigate to WireGuard directory
+cd /etc/wireguard
 
-* Change default ports
-* Use fail2ban and ufw for firewall and intrusion protection
-* Keep your system packages updated
-* Use dedicated API users with limited permissions
+# Generate private key
+wg genkey | sudo tee server_private.key
 
-## License
+# Generate public key from private key
+sudo cat server_private.key | wg pubkey | sudo tee server_public.key
 
-This guide is provided for educational purposes. Use it at your own risk. No warranty is provided.
+# Set proper permissions
+sudo chmod 600 server_private.key
+```
 
----
+### Step 3: Create WireGuard Server Configuration
 
-For feedback or contributions, feel free to open an issue or pull request.
+```bash
+# Create server config file
+sudo nano /etc/wireguard/wg0.conf
+```
+
+Add the following configuration:
+
+```ini
+[Interface]
+PrivateKey = YOUR_SERVER_PRIVATE_KEY
+Address = 10.0.0.1/24
+ListenPort = 51820
+SaveConfig = true
+
+# Enable IP forwarding and NAT
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+# MikroTik client configuration will be added here
+[Peer]
+PublicKey = MIKROTIK_PUBLIC_KEY
+AllowedIPs = 10.0.0.2/32, 192.168.1.0/24
+```
+
+### Step 4: Enable IP Forwarding
+
+```bash
+# Enable IP forwarding
+echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+```
+
+### Step 5: Configure Firewall
+
+```bash
+# Allow WireGuard port
+sudo ufw allow 51820/udp
+
+# Allow SSH (if using UFW)
+sudo ufw allow ssh
+
+# Enable firewall
+sudo ufw enable
+```
+
+## Part 2: MikroTik Router Setup (WireGuard Client)
+
+### Step 1: Generate MikroTik Keys
+
+Connect to MikroTik via Winbox or SSH and run:
+
+```
+/interface/wireguard
+add name=wg-server listen-port=51820
+
+/interface/wireguard/peers
+add interface=wg-server public-key="SERVER_PUBLIC_KEY" endpoint-address=YOUR_SERVER_IP endpoint-port=51820 allowed-address=0.0.0.0/0
+```
+
+### Step 2: Get MikroTik Public Key
+
+```
+/interface/wireguard
+print
+```
+
+Copy the public key from the output.
+
+### Step 3: Configure MikroTik WireGuard Interface
+
+```
+# Set IP address on WireGuard interface
+/ip/address
+add address=10.0.0.2/24 interface=wg-server
+
+# Add route through VPN
+/ip/route
+add dst-address=0.0.0.0/0 gateway=10.0.0.1 distance=1
+```
+
+### Step 4: Configure Firewall Rules
+
+```
+# Allow established and related connections
+/ip/firewall/filter
+add chain=input action=accept connection-state=established,related
+
+# Allow WireGuard
+add chain=input action=accept protocol=udp dst-port=51820
+
+# Allow local network
+add chain=input action=accept src-address=192.168.1.0/24
+
+# NAT rule for internet access through VPN
+/ip/firewall/nat
+add chain=srcnat action=masquerade out-interface=wg-server
+```
+
+## Part 3: Complete Server Configuration
+
+### Step 1: Add MikroTik Peer to Server Config
+
+Edit the server configuration:
+
+```bash
+sudo nano /etc/wireguard/wg0.conf
+```
+
+Update the \[Peer] section with MikroTik's public key:
+
+```ini
+[Peer]
+PublicKey = MIKROTIK_PUBLIC_KEY_HERE
+AllowedIPs = 10.0.0.2/32, 192.168.1.0/24
+```
+
+### Step 2: Start WireGuard Service
+
+```bash
+# Enable and start WireGuard
+sudo systemctl enable wg-quick@wg0
+sudo systemctl start wg-quick@wg0
+
+# Check status
+sudo systemctl status wg-quick@wg0
+sudo wg show
+```
+
+## Part 4: PHPNuxBill Configuration
+
+### Step 1: Install PHPNuxBill on Server
+
+```bash
+# Install required packages
+sudo apt install apache2 mysql-server php php-mysql php-cli php-curl php-json php-zip unzip -y
+
+# Create database
+sudo mysql -u root -p
+CREATE DATABASE nuxbill;
+CREATE USER 'nuxbill'@'localhost' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON nuxbill.* TO 'nuxbill'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+
+# Download and install PHPNuxBill
+cd /var/www/html
+sudo wget https://github.com/hotspotbilling/phpnuxbill/archive/refs/heads/master.zip
+sudo unzip master.zip
+sudo mv phpnuxbill-master/* .
+sudo chown -R www-data:www-data /var/www/html/
+sudo chmod -R 755 /var/www/html/
+```
+
+### Step 2: Configure PHPNuxBill
+
+1. Open browser and navigate to `http://YOUR_SERVER_IP`
+2. Follow installation wizard
+3. Configure database connection
+4. Set up MikroTik connection in PHPNuxBill:
+
+   * Router IP: `10.0.0.2` (MikroTik VPN IP)
+   * API Port: `8728`
+   * Username/Password: MikroTik admin credentials
+
+### Step 3: Enable MikroTik API
+
+On MikroTik router:
+
+```
+/ip/service
+set api disabled=no port=8728
+
+# Create API user (optional, for security)
+/user
+add name=api-user password=secure_password group=full
+```
+
+## Part 5: Testing and Verification
+
+### Step 1: Test VPN Connection
+
+On server:
+
+```bash
+# Check WireGuard status
+sudo wg show
+
+# Ping MikroTik through VPN
+ping 10.0.0.2
+```
+
+On MikroTik:
+
+```
+# Check interface status
+/interface/wireguard/print
+
+# Ping server through VPN
+/ping 10.0.0.1
+```
+
+### Step 2: Test PHPNuxBill Connection
+
+1. Login to PHPNuxBill admin panel
+2. Go to Settings → Router
+3. Test connection to MikroTik
+4. Verify hotspot users can be managed
+
+## Troubleshooting
+
+### Common Issues:
+
+1. **Connection fails**: Check firewall rules and ensure ports are open
+2. **API connection fails**: Verify MikroTik API is enabled and credentials are correct
+3. **No internet through VPN**: Check IP forwarding and NAT rules
+4. **WireGuard won't start**: Check configuration syntax and key formats
+
+### Debug Commands:
+
+```bash
+# Server side
+sudo wg show
+sudo journalctl -u wg-quick@wg0
+sudo iptables -L -n
+
+# MikroTik side
+/log print where topics~"wireguard"
+/interface/wireguard/print detail
+```
+
+## Security Recommendations
+
+1. Change default WireGuard port
+2. Use strong passwords for MikroTik API
+3. Implement fail2ban on server
+4. Regular security updates
+5. Monitor logs for suspicious activity
+6. Use certificate-based authentication where possible
+
+## Network Topology
+
+```
+Internet
+    ↓
+[Server] ←→ WireGuard VPN ←→ [MikroTik Router]
+10.0.0.1                             10.0.0.2
+    ↓                                  ↓
+PHPNuxBill                        Local Network
+                                  192.168.1.0/24
+```
+
+This setup allows PHPNuxBill running on your server to manage the MikroTik router through a secure WireGuard VPN tunnel.
