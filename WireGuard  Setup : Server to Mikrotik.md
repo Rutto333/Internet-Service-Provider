@@ -173,9 +173,7 @@ sudo wg show
 ### Step 1: Configure PHPNuxBill
 
 1. Open browser and navigate to `http://YOUR_SERVER_IP`
-2. Follow installation wizard
-3. Configure database connection
-4. Set up MikroTik connection in PHPNuxBill:
+2. Set up MikroTik Router connection in PHPNuxBill:
 
    * Router IP: `10.0.0.2` (MikroTik VPN IP)
    * API Port: `8728`
