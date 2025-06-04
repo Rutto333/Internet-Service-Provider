@@ -22,13 +22,10 @@ Protects the router and allows LAN-to-WAN traffic.
 
 ```bash
 /ip firewall filter
-add chain=input connection-state=established,related action=accept comment="Allow established/related"
-add chain=input connection-state=invalid action=drop comment="Drop invalid"
+add chain=input connection-state=established,related action=accept comment="Allow established/related
 add chain=input in-interface=bridge1 action=accept comment="Allow LAN access to router"
-add chain=input action=drop comment="Drop all other input"
 add chain=forward connection-state=established,related action=accept comment="Allow established forwarding"
 add chain=forward in-interface=bridge1 out-interface=ether1 action=accept comment="Allow LAN to WAN"
-add chain=forward action=drop comment="Drop all other forward"
 ```
 
 ---
