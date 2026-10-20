@@ -143,39 +143,42 @@ sudo systemctl restart mysql
 
 ---
 
+
 ## Step 3: Install PHP
 
 Install PHP:
-​```bash
+```bash
 sudo apt install software-properties-common -y
 sudo add-apt-repository ppa:ondrej/php -y
 sudo apt update
 sudo apt install php8.4-fpm php8.4 libapache2-mod-php8.4 php8.4-common php8.4-mysql php8.4-xml php8.4-xmlrpc php8.4-curl php8.4-gd php8.4-imagick php8.4-cli php8.4-imap php8.4-mbstring php8.4-opcache php8.4-soap php8.4-zip php8.4-intl php8.4-bcmath unzip -y
-​```
+```
 
 Check PHP version:
-​```bash
+```bash
 php -v
-​```
+```
 
 Configure PHP:
-​```bash
+```bash
 sudo nano /etc/php/8.4/apache2/php.ini
-​```
+```
 Change:
-​```
-upload_max_filesize = 32M
-post_max_size = 48M
-memory_limit = 256M
-max_execution_time = 600
-max_input_vars = 3000
+```
+upload_max_filesize = 32M 
+post_max_size = 48M 
+memory_limit = 256M 
+max_execution_time = 600 
+max_input_vars = 3000 
 max_input_time = 1000
-​```
+```
 
 Restart Apache:
-​```bash
+```bash
 sudo systemctl restart apache2
-​```
+```
+
+---
 
 
 ## Step 4: Install phpMyAdmin
